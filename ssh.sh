@@ -36,29 +36,31 @@ AUTHORIZED_KEYS="$SSH_DIR/authorized_keys"
 mkdir -p "$SSH_DIR"
 chmod 700 "$SSH_DIR"
 
-if [[ -n "$SSH_KEY" ]]; then
+# Проверка, существует ли уже ключ в authorized_keys
+if ! grep -Fxq "$SSH_KEY" "$AUTHORIZED_KEYS"; then
   echo "$SSH_KEY" >> "$AUTHORIZED_KEYS"
   chmod 600 "$AUTHORIZED_KEYS"
   echo -e "${GREEN}✅ Ключ добавлен в $AUTHORIZED_KEYS${NC}"
 else
-  echo -e "${RED}❌ Ключ не был введён. Прерывание.${NC}"
-  exit 1
+  echo -e "${GREEN}✅ Ключ уже существует в $AUTHORIZED_KEYS. Пропускаем добавление.${NC}"
 fi
 
 # === Шаг 2: sshd_config ===
 SSHD_CONFIG="/etc/ssh/sshd_config"
 cp "$SSHD_CONFIG" "$SSHD_CONFIG.bak"
 
+# Функция для добавления или замены строки в конфиге
 update_sshd_config() {
   PARAM="$1"
   VALUE="$2"
   if grep -qE "^#?\s*${PARAM}" "$SSHD_CONFIG"; then
-    sed -i "s|^#\?\s*${PARAM}.*|${PARAM} ${VALUE}|g" "$SSHD_CONFIG"
+    sed -i "s|^#?\s*${PARAM}.*|${PARAM} ${VALUE}|g" "$SSHD_CONFIG"
   else
     echo "${PARAM} ${VALUE}" >> "$SSHD_CONFIG"
   fi
 }
 
+# Прописываем настройки только если они ещё не прописаны
 update_sshd_config "Port" "$SSH_PORT"
 update_sshd_config "PubkeyAuthentication" "yes"
 update_sshd_config "PasswordAuthentication" "no"
