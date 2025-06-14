@@ -52,7 +52,7 @@ function perform_update() {
     local now_time=$(TZ="$TIMEZONE" date +"%H:%M")
 
     # Если сейчас то самое время
-    if [[ "$now_time" == "$update_time" ]]; then
+    if [[ "$now_time" >= "$update_time" ]]; then
         echo -e "${GREEN}Начинаем обновление контейнеров...${RESET}"
         send_telegram "*🚀 Обновление контейнеров началось...*"
 
