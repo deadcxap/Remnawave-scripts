@@ -25,12 +25,12 @@ MOSCOW_TIMEZONE="+03:00"
 # Функция для конвертации времени в московский часовой пояс
 convert_to_moscow_time() {
     local datetime="$1"
-    date -d "${datetime} UTC" +"%Y/%m/%d %H:%M:%S" --date="${MOSCOW_TIMEZONE}"
+    date -d "${datetime} UTC" +"%Y/%m/%d %H:%M:%S" --date="${MOSCOW_TIMEZONE}" 2>/dev/null || echo "INVALID_DATE"
 }
 
 # Функция для получения всех пользователей из логов
 get_all_users() {
-    docker exec -it "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -oP "email: \K\S+" | sort | uniq
+    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -oP "email: \K\S+" | sort | uniq
 }
 
 # Функция для отображения активности пользователей
@@ -38,15 +38,16 @@ get_active_users() {
     local current_time=$(date +%s)
     local active_users=0
 
-    while IFS= read -r line; do
+    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | while read -r line; do
         local log_time=$(echo "$line" | awk '{print $1, $2}')
-        local log_timestamp=$(date -d "$log_time" +%s)
-        local diff=$((current_time - log_timestamp))
-
-        if [ "$diff" -le 60 ]; then
-            active_users=$((active_users + 1))
+        local log_timestamp=$(date -d "$log_time" +%s 2>/dev/null)
+        if [ -n "$log_timestamp" ]; then
+            local diff=$((current_time - log_timestamp))
+            if [ "$diff" -le 60 ]; then
+                active_users=$((active_users + 1))
+            fi
         fi
-    done < <(docker exec -it "$CONTAINER_NAME" tail -n +1 "$LOG_FILE")
+    done
 
     echo "$active_users"
 }
@@ -54,29 +55,35 @@ get_active_users() {
 # Функция для отображения истории подключений пользователя
 show_user_history() {
     local user="$1"
-    docker exec -it "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep "email: $user" | while read -r line; do
+    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -F "email: $user" | while read -r line; do
         local log_time=$(echo "$line" | awk '{print $1, $2}')
         local converted_time=$(convert_to_moscow_time "$log_time")
-        echo "$line" | sed "s/$log_time/$converted_time/"
+        if [ "$converted_time" != "INVALID_DATE" ]; then
+            echo "$line" | sed "s/$log_time/$converted_time/"
+        fi
     done
 }
 
 # Функция для отображения текущей активности пользователя
 show_user_realtime() {
     local user="$1"
-    docker exec -it "$CONTAINER_NAME" tail -f "$LOG_FILE" | grep --line-buffered "email: $user" | while read -r line; do
+    docker exec "$CONTAINER_NAME" tail -f "$LOG_FILE" | grep --line-buffered -F "email: $user" | while read -r line; do
         local log_time=$(echo "$line" | awk '{print $1, $2}')
         local converted_time=$(convert_to_moscow_time "$log_time")
-        echo "$line" | sed "s/$log_time/$converted_time/"
+        if [ "$converted_time" != "INVALID_DATE" ]; then
+            echo "$line" | sed "s/$log_time/$converted_time/"
+        fi
     done
 }
 
 # Функция для отображения текущей активности в логах
 show_logs_realtime() {
-    docker exec -it "$CONTAINER_NAME" tail -f "$LOG_FILE" | while read -r line; do
+    docker exec "$CONTAINER_NAME" tail -f "$LOG_FILE" | while read -r line; do
         local log_time=$(echo "$line" | awk '{print $1, $2}')
         local converted_time=$(convert_to_moscow_time "$log_time")
-        echo "$line" | sed "s/$log_time/$converted_time/"
+        if [ "$converted_time" != "INVALID_DATE" ]; then
+            echo "$line" | sed "s/$log_time/$converted_time/"
+        fi
     done
 }
 
@@ -86,16 +93,20 @@ save_logs() {
     local output_file="$2"
 
     if [ -z "$user" ]; then
-        docker exec -it "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | while read -r line; do
+        docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | while read -r line; do
             local log_time=$(echo "$line" | awk '{print $1, $2}')
             local converted_time=$(convert_to_moscow_time "$log_time")
-            echo "$line" | sed "s/$log_time/$converted_time/"
+            if [ "$converted_time" != "INVALID_DATE" ]; then
+                echo "$line" | sed "s/$log_time/$converted_time/"
+            fi
         done > "$output_file"
     else
-        docker exec -it "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep "email: $user" | while read -r line; do
+        docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -F "email: $user" | while read -r line; do
             local log_time=$(echo "$line" | awk '{print $1, $2}')
             local converted_time=$(convert_to_moscow_time "$log_time")
-            echo "$line" | sed "s/$log_time/$converted_time/"
+            if [ "$converted_time" != "INVALID_DATE" ]; then
+                echo "$line" | sed "s/$log_time/$converted_time/"
+            fi
         done > "$output_file"
     fi
 
