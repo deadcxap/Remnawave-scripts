@@ -67,11 +67,15 @@ function perform_update() {
     # Получаем текущее время в московском часовом поясе
     local now_time=$(TZ="$TIMEZONE" date +"%H:%M")
 
-    # Логирование для отладки
-    echo "DEBUG: now_time=$now_time, update_time=$update_time" >> /tmp/remna_update_debug.log
+    # Преобразуем время в минуты с начала дня
+    local now_minutes=$((10#$(echo "$now_time" | cut -d: -f1) * 60 + 10#$(echo "$now_time" | cut -d: -f2)))
+    local update_minutes=$((10#$(echo "$update_time" | cut -d: -f1) * 60 + 10#$(echo "$update_time" | cut -d: -f2)))
 
-    # Если текущее время совпадает с запланированным
-    if [[ "$now_time" == "$update_time" ]]; then
+    # Логирование для отладки
+    echo "DEBUG: now_time=$now_time, update_time=$update_time, now_minutes=$now_minutes, update_minutes=$update_minutes" >> /tmp/remna_update_debug.log
+
+    # Если текущее время больше или равно запланированному
+    if [[ $now_minutes -ge $update_minutes ]]; then
         echo -e "${GREEN}Начинаем обновление контейнеров...${RESET}"
         send_telegram "*🚀 Обновление контейнеров началось...*"
 
@@ -79,7 +83,7 @@ function perform_update() {
 
         # Выполнение команд
         output=$( (ls) 2>&1 ) # Это тестовая команда. После теста замените на рабочую
-	# output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
+        # output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
         log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
 
         # Удаляем задание (одноразовое выполнение)
