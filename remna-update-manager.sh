@@ -3,7 +3,7 @@
 # создаем nano /usr/local/bin/remna-update-manager.sh
 # потом chmod +x /usr/local/bin/remna-update-manager.sh
 # добавляем в кронтаб 
-# * * * * * /usr/local/bin/remna-update-manager.sh cron
+# * * * * * /bin/bash /usr/local/bin/remna-update-manager.sh cron
 
 # === КОНФИГУРАЦИЯ ===
 DOCKER_COMPOSE_DIR="/opt/remnawave"
