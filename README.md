@@ -10,6 +10,8 @@ remnanode_analyzer.sh
 
 remna-update-manager.sh
 
+Можно запланировать одноразовое обновление контейнеров по Московскому времени
+
 ![image](https://github.com/user-attachments/assets/200a05dc-c228-4592-b8bc-af03208548b9)
 
 Remnawave_backup.sh:
