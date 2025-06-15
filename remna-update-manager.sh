@@ -80,7 +80,7 @@ function perform_update() {
         # Выполнение команд
         output=$( (ls) 2>&1 ) # Это тестовая команда. После теста замените на рабочую
 	# output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
-        log_output="Тестирование. Логи отсутствуют."
+        log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
 
         # Удаляем задание (одноразовое выполнение)
         rm -f "$SCHEDULE_FILE"
