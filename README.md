@@ -6,7 +6,7 @@ ssh.sh - данный скрипт для первичной настройки 
 
 remnanode_analyzer.sh
 
-![image](https://github.com/user-attachments/assets/24c9195d-dc0f-42aa-9036-a4567b3d2669)
+![image](https://github.com/user-attachments/assets/44b3e7c1-a577-4ead-a1c1-c169a7f4b12a)
 
 remna-update-manager.sh
 
