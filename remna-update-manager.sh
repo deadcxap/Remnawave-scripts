@@ -8,10 +8,7 @@
 # === КОНФИГУРАЦИЯ ===
 DOCKER_COMPOSE_DIR="/opt/remnawave"
 TIMEZONE="Europe/Moscow"
-
-# Telegram
-TELEGRAM_BOT_TOKEN="xxxxxxxx:yyyyyyyyyyyyyyyyyyyyyyyyyy"
-TELEGRAM_CHAT_ID="-100xxxxxxxxxxxxxxx"
+ENV_FILE="/opt/remnawave/.env"
 
 # Цвета
 GREEN="\e[32m"
@@ -22,6 +19,18 @@ RESET="\e[0m"
 # Временный файл для хранения времени запуска
 SCHEDULE_FILE="/tmp/update_schedule_time"
 
+# === Функция для загрузки переменных из .env ===
+function load_env_vars() {
+    if [[ -f "$ENV_FILE" ]]; then
+        # Загружаем переменные из .env файла
+        export $(grep -E '^(TELEGRAM_BOT_TOKEN|TELEGRAM_NOTIFY_NODES_CHAT_ID)=' "$ENV_FILE" | xargs)
+    else
+        echo -e "${RED}Файл $ENV_FILE не найден!${RESET}"
+        exit 1
+    fi
+}
+
+# === Функция для отправки уведомлений в Telegram ===
 function send_telegram() {
     local message="$1"
     curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
@@ -30,29 +39,22 @@ function send_telegram() {
         -d parse_mode="Markdown"
 }
 
-function schedule_update() {
-    echo -e "${CYAN}Введите время одноразового обновления в формате HH:MM (по $TIMEZONE):${RESET}"
-    read -p "Время: " time_input
-    if [[ $time_input =~ ^([01]?[0-9]|2[0-3]):[0-5][0-9]$ ]]; then
-        echo "$time_input" > "$SCHEDULE_FILE"
-        echo -e "${GREEN}Обновление запланировано на $time_input по $TIMEZONE${RESET}"
-        send_telegram "*📅 Запланировано обновление контейнеров в $time_input по $TIMEZONE*"
-    else
-        echo -e "${RED}Неверный формат времени. Попробуйте ещё раз.${RESET}"
-    fi
-}
-
+# === Функция для выполнения обновления ===
 function perform_update() {
+    # Загружаем запланированное время
     local update_time=$(cat "$SCHEDULE_FILE" 2>/dev/null)
     if [[ -z "$update_time" ]]; then
         return
     fi
 
-    # Получаем текущее время
+    # Получаем текущее время в московском часовом поясе
     local now_time=$(TZ="$TIMEZONE" date +"%H:%M")
 
-    # Если сейчас то самое время
-    if [[ "$now_time" >= "$update_time" ]]; then
+    # Логирование для отладки
+    echo "DEBUG: now_time=$now_time, update_time=$update_time" >> /tmp/remna_update_debug.log
+
+    # Если текущее время совпадает с запланированным
+    if [[ "$now_time" == "$update_time" ]]; then
         echo -e "${GREEN}Начинаем обновление контейнеров...${RESET}"
         send_telegram "*🚀 Обновление контейнеров началось...*"
 
@@ -84,6 +86,7 @@ EOF
     fi
 }
 
+# === Основное меню ===
 function show_menu() {
     echo -e "${CYAN}==== Менеджер обновлений контейнеров ====${RESET}"
 
@@ -111,9 +114,10 @@ function show_menu() {
 }
 
 # === Запуск ===
+load_env_vars
 
 if [[ "$1" == "cron" ]]; then
-    perform_update
+    perform_update >> /tmp/remna_update.log 2>&1
 else
     show_menu
 fi
