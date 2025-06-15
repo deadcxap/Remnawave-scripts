@@ -3,6 +3,7 @@
 # Как установить и использовать:
 # 
 # Сохраните скрипт в файл, например, remnanode_analyzer.sh.
+# nano remnanode_analyzer.sh
 # Убедитесь, что утилита dialog установлена:
 # sudo apt install dialog  # Для Ubuntu/Debian
 # 
