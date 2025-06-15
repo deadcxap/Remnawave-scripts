@@ -1,189 +1,121 @@
 #!/bin/bash
-# Как установить и использовать:
-# 
-# Сохраните скрипт в файл, например, remnanode_analyzer.sh.
-# nano remnanode_analyzer.sh
-# Убедитесь, что утилита dialog установлена:
-# sudo apt install dialog  # Для Ubuntu/Debian
-# 
-# Сделайте скрипт исполняемым:
-# chmod +x remnanode_analyzer.sh
-# Переместите скрипт в /usr/local/bin для удобного запуска:
-# sudo mv remnanode_analyzer.sh /usr/local/bin/remnanode_analyzer
-# Запустите скрипт:
-# remnanode_analyzer
-# 
 
-# Путь к лог-файлу в контейнере
-LOG_FILE="/var/log/supervisor/xray.out.log"
+# # Этот Bash-скрипт предназначен для мониторинга и анализа логов Xray ноды Remnawave в контейнере Docker. 
+# 
+# # 🔹 Основные возможности:
+# # ✅ Просмотр списка последних пользователей – показывает всех пользователей, которые подключались к серверу (из последних 500 строк лога).
+# # ✅ Мониторинг подключений в реальном времени – можно выбрать конкретного пользователя и следить за его активностью (tail -f).
+# # ✅ Отслеживание всех подключений – вывод логов в реальном времени для всех пользователей.
+# # ✅ Автоматическое обновление данных – можно быстро обновить список пользователей без перезапуска скрипта.
+
+# Цвета для оформления
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Настройки
 CONTAINER_NAME="remnanode"
+LOG_PATH="/var/log/supervisor/xray.out.log"
+LOG_LINES=500 # Количество анализируемых строк лога
 
-# Московский часовой пояс (UTC+3)
-MOSCOW_TIMEZONE="+03:00"
-
-# Функция для конвертации времени в московский часовой пояс
-convert_to_moscow_time() {
-    local datetime="$1"
-    date -d "${datetime} UTC" +"%Y/%m/%d %H:%M:%S" --date="${MOSCOW_TIMEZONE}" 2>/dev/null || echo "INVALID_DATE"
+# Функция для быстрого получения логов
+get_recent_logs() {
+    docker exec "$CONTAINER_NAME" tail -n $LOG_LINES "$LOG_PATH" 2>/dev/null
 }
 
-# Функция для получения всех пользователей из логов
-get_all_users() {
-    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -oP "email: \K\S+" | sort | uniq
+# Функция для получения списка пользователей
+get_users() {
+    get_recent_logs | grep -o "email: [^ ]*" | awk '{print $2}' | sort -u
 }
 
-# Функция для отображения активности пользователей
-get_active_users() {
-    local current_time=$(date +%s)
-    local active_users=0
-
-    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | while read -r line; do
-        local log_time=$(echo "$line" | awk '{print $1, $2}')
-        local log_timestamp=$(date -d "$log_time" +%s 2>/dev/null)
-        if [ -n "$log_timestamp" ]; then
-            local diff=$((current_time - log_timestamp))
-            if [ "$diff" -le 60 ]; then
-                active_users=$((active_users + 1))
-            fi
-        fi
-    done
-
-    echo "$active_users"
-}
-
-# Функция для отображения истории подключений пользователя
-show_user_history() {
+# Функция для реального времени просмотра логов пользователя
+tail_user_logs() {
     local user="$1"
-    docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -F "email: $user" | while read -r line; do
-        local log_time=$(echo "$line" | awk '{print $1, $2}')
-        local converted_time=$(convert_to_moscow_time "$log_time")
-        if [ "$converted_time" != "INVALID_DATE" ]; then
-            echo "$line" | sed "s/$log_time/$converted_time/"
-        fi
-    done
+    echo -e "${YELLOW}Следим за логами пользователя $user (Ctrl+C для остановки)...${NC}"
+    echo -e "${BLUE}------------------------------------------------------------${NC}"
+    docker exec -it "$CONTAINER_NAME" tail -n 10 -f "$LOG_PATH" | \
+    grep --line-buffered "accepted.*email: $user"
 }
 
-# Функция для отображения текущей активности пользователя
-show_user_realtime() {
-    local user="$1"
-    docker exec "$CONTAINER_NAME" tail -f "$LOG_FILE" | grep --line-buffered -F "email: $user" | while read -r line; do
-        local log_time=$(echo "$line" | awk '{print $1, $2}')
-        local converted_time=$(convert_to_moscow_time "$log_time")
-        if [ "$converted_time" != "INVALID_DATE" ]; then
-            echo "$line" | sed "s/$log_time/$converted_time/"
-        fi
-    done
-}
-
-# Функция для отображения текущей активности в логах
-show_logs_realtime() {
-    docker exec "$CONTAINER_NAME" tail -f "$LOG_FILE" | while read -r line; do
-        local log_time=$(echo "$line" | awk '{print $1, $2}')
-        local converted_time=$(convert_to_moscow_time "$log_time")
-        if [ "$converted_time" != "INVALID_DATE" ]; then
-            echo "$line" | sed "s/$log_time/$converted_time/"
-        fi
-    done
-}
-
-# Функция для сохранения логов
-save_logs() {
-    local user="$1"
-    local output_file="$2"
-
-    if [ -z "$user" ]; then
-        docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | while read -r line; do
-            local log_time=$(echo "$line" | awk '{print $1, $2}')
-            local converted_time=$(convert_to_moscow_time "$log_time")
-            if [ "$converted_time" != "INVALID_DATE" ]; then
-                echo "$line" | sed "s/$log_time/$converted_time/"
-            fi
-        done > "$output_file"
-    else
-        docker exec "$CONTAINER_NAME" tail -n +1 "$LOG_FILE" | grep -F "email: $user" | while read -r line; do
-            local log_time=$(echo "$line" | awk '{print $1, $2}')
-            local converted_time=$(convert_to_moscow_time "$log_time")
-            if [ "$converted_time" != "INVALID_DATE" ]; then
-                echo "$line" | sed "s/$log_time/$converted_time/"
-            fi
-        done > "$output_file"
-    fi
-
-    echo "Логи сохранены в файл $output_file"
-}
-
-# Функция для выбора пользователя через dialog
-select_user() {
-    local users=($(get_all_users))
-    local options=()
-    for i in "${!users[@]}"; do
-        options+=("$i" "${users[$i]}")
-    done
-
-    local choice=$(dialog --clear --title "Выбор пользователя" --menu "Выберите пользователя:" 15 50 10 "${options[@]}" 2>&1 >/dev/tty)
-    clear
-    echo "${users[$choice]}"
+# Функция для просмотра всех логов в реальном времени
+tail_all_logs() {
+    echo -e "${YELLOW}Следим за всеми подключениями в реальном времени (Ctrl+C для остановки)...${NC}"
+    echo -e "${BLUE}------------------------------------------------------------${NC}"
+    docker exec -it "$CONTAINER_NAME" tail -n 10 -f "$LOG_PATH" | \
+    grep --line-buffered "accepted"
 }
 
 # Главное меню
 while true; do
-    echo "Выберите действие:"
-    echo "1) Показать список всех пользователей"
-    echo "2) Показать количество активных пользователей (последнее подключение не старше минуты)"
-    echo "3) Показать историю подключений пользователя"
-    echo "4) Показать текущую активность пользователя"
-    echo "5) Показать текущую активность в логах"
-    echo "6) Сохранить логи"
-    echo "7) Обновить скрипт"
-    echo "8) Выйти"
-    read -rp "Введите номер действия: " choice
-
+    clear
+    
+    # Получаем данные
+    all_users=($(get_users))
+    
+    echo -e "${GREEN}===============================================${NC}"
+    echo -e "${CYAN}      Анализатор логов Xray ($CONTAINER_NAME)${NC}"
+    echo -e "${GREEN}===============================================${NC}"
+    echo -e "${YELLOW}1) Показать список последних пользователей (всего: ${#all_users[@]})${NC}"
+    echo -e "${YELLOW}2) Смотреть подключения пользователя в реальном времени${NC}"
+    echo -e "${YELLOW}3) Смотреть ВСЕ подключения в реальном времени${NC}"
+    echo -e "${YELLOW}4) Обновить данные${NC}"
+    echo -e "${RED}0) Выход${NC}"
+    echo -e "${GREEN}-----------------------------------------------${NC}"
+    
+    read -p "$(echo -e ${CYAN}'Ваш выбор: '${NC})" choice
+    
     case $choice in
         1)
-            echo "Список всех пользователей:"
-            get_all_users
+            clear
+            echo -e "${CYAN}Список последних пользователей:${NC}"
+            echo -e "${BLUE}--------------------------${NC}"
+            for i in "${!all_users[@]}"; do
+                echo -e "${YELLOW}$((i+1))) ${all_users[i]}${NC}"
+            done
+            echo -e "${BLUE}--------------------------${NC}"
+            read -p "$(echo -e ${CYAN}'Нажмите Enter для возврата в меню...'${NC})" 
             ;;
         2)
-            echo "Количество активных пользователей:"
-            get_active_users
+            clear
+            if [ ${#all_users[@]} -eq 0 ]; then
+                echo -e "${RED}Не найдено пользователей в логах.${NC}"
+                read -p "$(echo -e ${CYAN}'Нажмите Enter для возврата в меню...'${NC})"
+                continue
+            fi
+            
+            echo -e "${CYAN}Список пользователей:${NC}"
+            for i in "${!all_users[@]}"; do
+                echo -e "${YELLOW}$((i+1))) ${all_users[i]}${NC}"
+            done
+            
+            read -p "$(echo -e ${CYAN}'Выберите номер пользователя: '${NC})" user_num
+            if [[ ! "$user_num" =~ ^[0-9]+$ ]] || [ "$user_num" -lt 1 ] || [ "$user_num" -gt ${#all_users[@]} ]; then
+                echo -e "${RED}Неверный выбор.${NC}"
+                read -p "$(echo -e ${CYAN}'Нажмите Enter для возврата в меню...'${NC})"
+                continue
+            fi
+            
+            user="${all_users[$((user_num-1))]}"
+            clear
+            tail_user_logs "$user"
             ;;
         3)
-            user=$(select_user)
-            if [ -n "$user" ]; then
-                echo "История подключений пользователя $user:"
-                show_user_history "$user"
-            else
-                echo "Пользователь не выбран."
-            fi
+            clear
+            tail_all_logs
             ;;
         4)
-            user=$(select_user)
-            if [ -n "$user" ]; then
-                echo "Текущая активность пользователя $user:"
-                show_user_realtime "$user"
-            else
-                echo "Пользователь не выбран."
-            fi
+            # Просто обновим экран
             ;;
-        5)
-            echo "Текущая активность в логах:"
-            show_logs_realtime
-            ;;
-        6)
-            user=$(select_user)
-            read -rp "Введите имя файла для сохранения логов: " output_file
-            save_logs "$user" "$output_file"
-            ;;
-        7)
-            echo "Обновление скрипта..."
-            exec "$0"
-            ;;
-        8)
-            echo "Выход..."
+        0)
+            echo -e "${RED}Выход...${NC}"
             exit 0
             ;;
         *)
-            echo "Неверный выбор, попробуйте снова."
+            echo -e "${RED}Неверный выбор. Попробуйте снова.${NC}"
+            sleep 1
             ;;
     esac
 done
