@@ -22,8 +22,12 @@ SCHEDULE_FILE="/tmp/update_schedule_time"
 # === Функция для загрузки переменных из .env ===
 function load_env_vars() {
     if [[ -f "$ENV_FILE" ]]; then
-        # Загружаем переменные из .env файла
-        export $(grep -E '^(TELEGRAM_BOT_TOKEN|TELEGRAM_NOTIFY_NODES_CHAT_ID)=' "$ENV_FILE" | xargs)
+        # Загружаем только нужные переменные из .env файла
+        export $(grep -E '^(TELEGRAM_BOT_TOKEN|TELEGRAM_NOTIFY_NODES_CHAT_ID)=' "$ENV_FILE" | sed 's/^/export /' | xargs -d '\n')
+        
+        # Удаляем кавычки, если они есть
+        TELEGRAM_BOT_TOKEN=$(echo "$TELEGRAM_BOT_TOKEN" | sed 's/^"\(.*\)"$/\1/')
+        TELEGRAM_CHAT_ID=$(echo "$TELEGRAM_NOTIFY_NODES_CHAT_ID" | sed 's/^"\(.*\)"$/\1/')
     else
         echo -e "${RED}Файл $ENV_FILE не найден!${RESET}"
         exit 1
@@ -37,6 +41,19 @@ function send_telegram() {
         --data-urlencode chat_id="${TELEGRAM_CHAT_ID}" \
         --data-urlencode text="$message" \
         -d parse_mode="Markdown"
+}
+
+# === Функция для планирования обновления ===
+function schedule_update() {
+    echo -e "${CYAN}Введите время одноразового обновления в формате HH:MM (по $TIMEZONE):${RESET}"
+    read -p "Время: " time_input
+    if [[ $time_input =~ ^([01]?[0-9]|2[0-3]):[0-5][0-9]$ ]]; then
+        echo "$time_input" > "$SCHEDULE_FILE"
+        echo -e "${GREEN}Обновление запланировано на $time_input по $TIMEZONE${RESET}"
+        send_telegram "*📅 Запланировано обновление контейнеров в $time_input по $TIMEZONE*"
+    else
+        echo -e "${RED}Неверный формат времени. Попробуйте ещё раз.${RESET}"
+    fi
 }
 
 # === Функция для выполнения обновления ===
@@ -61,8 +78,9 @@ function perform_update() {
         cd "$DOCKER_COMPOSE_DIR" || exit 1
 
         # Выполнение команд
-        output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
-        log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
+        output=$( (ls) 2>&1 ) # Это тестовая команда. После теста замените на рабочую
+	# output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
+        log_output="Тестирование. Логи отсутствуют."
 
         # Удаляем задание (одноразовое выполнение)
         rm -f "$SCHEDULE_FILE"
