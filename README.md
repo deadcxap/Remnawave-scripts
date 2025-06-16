@@ -12,7 +12,8 @@ ssh.sh - данный скрипт для первичной настройки 
 
 Можно запланировать одноразовое обновление контейнеров по Московскому времени
 
-![image](https://github.com/user-attachments/assets/200a05dc-c228-4592-b8bc-af03208548b9)
+![image](https://github.com/user-attachments/assets/0c33c20f-a120-456b-bdea-d7039c30e0be)
+
 
 ## Remnawave_backup.sh:
 останавливает контейнеры, затем делает бэкап volumes БД и Редис, содержимого папки /opt/remnawave и затем запускает контейнеры
