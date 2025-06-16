@@ -11,7 +11,9 @@
 
 Можно запланировать одноразовое обновление контейнеров по Московскому времени c помощью **at**
 
-Обновляются командой `cd /opt/remnawave && docker compose down && docker compose pull && docker compose up -d && docker compose logs -f -t`
+Обновляются командой `cd /opt/remnawave && docker compose down && docker compose pull && docker compose up -d`
+
+Лог запуска идет в телеграм чат через бот, указанные в /opt/remnawave/.env
 
 ![image](https://github.com/user-attachments/assets/0c33c20f-a120-456b-bdea-d7039c30e0be)
 
