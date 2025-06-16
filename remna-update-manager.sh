@@ -2,8 +2,6 @@
 
 # создаем nano /usr/local/bin/remna-update-manager.sh
 # потом chmod +x /usr/local/bin/remna-update-manager.sh
-# не забудь в коде переключить output=$... с теста на рабочий код
-# в секции "Функция для выполнения обновления"
 
 # === КОНФИГУРАЦИЯ ===
 DOCKER_COMPOSE_DIR="/opt/remnawave"
@@ -143,8 +141,7 @@ function perform_update() {
 
     cd "$DOCKER_COMPOSE_DIR" || exit 1
 
-    output=$( (ls) 2>&1 ) # это тест. замените потом на строку ниже
-    # output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
+    output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
     log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
 
     rm -f "$AT_JOB_FILE"
