@@ -3,6 +3,8 @@
 
 ## remnanode_analyzer.sh
 
+Подключается к контейнеру ноды, смотрит лог xray (последнюю 1000 записей), либо realtime
+
 ![image](https://github.com/user-attachments/assets/44b3e7c1-a577-4ead-a1c1-c169a7f4b12a)
 
 ## remna-update-manager.sh
