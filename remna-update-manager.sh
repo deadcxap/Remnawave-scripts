@@ -138,7 +138,8 @@ function perform_update() {
 
     cd "$DOCKER_COMPOSE_DIR" || exit 1
 
-    output=$( (ls) 2>&1 )
+    output=$( (ls) 2>&1 ) # это тест. замените потом на строку ниже
+    # output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
     log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
 
     rm -f "$AT_JOB_FILE"
