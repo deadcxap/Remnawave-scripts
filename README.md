@@ -1,4 +1,5 @@
-# server-scripts
+# Remnawave-scripts
+
 
 ## remnanode_analyzer.sh
 
