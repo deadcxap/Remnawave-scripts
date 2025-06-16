@@ -1,14 +1,10 @@
 #!/bin/bash
 
-# создаем nano /usr/local/bin/remna-update-manager.sh
-# потом chmod +x /usr/local/bin/remna-update-manager.sh
-# добавляем в кронтаб 
-# * * * * * /bin/bash /usr/local/bin/remna-update-manager.sh cron
-
 # === КОНФИГУРАЦИЯ ===
 DOCKER_COMPOSE_DIR="/opt/remnawave"
 TIMEZONE="Europe/Moscow"
 ENV_FILE="/opt/remnawave/.env"
+AT_JOB_FILE="/tmp/remna_update_at_job"
 
 # Цвета
 GREEN="\e[32m"
@@ -16,16 +12,33 @@ CYAN="\e[36m"
 RED="\e[31m"
 RESET="\e[0m"
 
-# Временный файл для хранения времени запуска
-SCHEDULE_FILE="/tmp/update_schedule_time"
+# === Функция для проверки и установки at ===
+function check_install_at() {
+    if ! command -v at &> /dev/null; then
+        echo -e "${RED}Команда 'at' не установлена.${RESET}"
+        read -p "Установить сейчас? [y/N] " answer
+        if [[ "$answer" =~ [yY] ]]; then
+            if [[ -f /etc/debian_version ]]; then
+                apt-get update && apt-get install -y at
+            elif [[ -f /etc/redhat-release ]]; then
+                yum install -y at
+            else
+                echo -e "${RED}Не удалось определить дистрибутив для установки at. Установите вручную.${RESET}"
+                exit 1
+            fi
+            systemctl enable --now atd
+            echo -e "${GREEN}at успешно установлен и запущен.${RESET}"
+        else
+            echo -e "${RED}Для работы скрипта требуется at. Выход.${RESET}"
+            exit 1
+        fi
+    fi
+}
 
 # === Функция для загрузки переменных из .env ===
 function load_env_vars() {
     if [[ -f "$ENV_FILE" ]]; then
-        # Загружаем только нужные переменные из .env файла
         export $(grep -E '^(TELEGRAM_BOT_TOKEN|TELEGRAM_NOTIFY_NODES_CHAT_ID)=' "$ENV_FILE" | sed 's/^/export /' | xargs -d '\n')
-        
-        # Удаляем кавычки, если они есть
         TELEGRAM_BOT_TOKEN=$(echo "$TELEGRAM_BOT_TOKEN" | sed 's/^"\(.*\)"$/\1/')
         TELEGRAM_CHAT_ID=$(echo "$TELEGRAM_NOTIFY_NODES_CHAT_ID" | sed 's/^"\(.*\)"$/\1/')
     else
@@ -40,57 +53,97 @@ function send_telegram() {
     curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
         --data-urlencode chat_id="${TELEGRAM_CHAT_ID}" \
         --data-urlencode text="$message" \
-        -d parse_mode="Markdown"
+        -d parse_mode="Markdown" > /dev/null 2>&1
+}
+
+# === Функция для конвертации времени ===
+function convert_to_server_time() {
+    local user_time="$1"
+    local user_tz="$2"
+    
+    if [[ "$(date +%Z)" == "MSK" ]] || [[ "$(date +%Z)" == "+0300" ]]; then
+        echo "$user_time"
+    else
+        local current_date=$(TZ="$user_tz" date +"%Y-%m-%d")
+        local user_datetime="${current_date} ${user_time}"
+        date --date="TZ=\"$user_tz\" $user_datetime" +"%H:%M"
+    fi
 }
 
 # === Функция для планирования обновления ===
 function schedule_update() {
     echo -e "${CYAN}Введите время одноразового обновления в формате HH:MM (по $TIMEZONE):${RESET}"
     read -p "Время: " time_input
+    
     if [[ $time_input =~ ^([01]?[0-9]|2[0-3]):[0-5][0-9]$ ]]; then
-        echo "$time_input" > "$SCHEDULE_FILE"
-        echo -e "${GREEN}Обновление запланировано на $time_input по $TIMEZONE${RESET}"
-        send_telegram "*📅 Запланировано обновление контейнеров в $time_input по $TIMEZONE*"
+        server_time=$(convert_to_server_time "$time_input" "$TIMEZONE")
+        
+        if [[ -f "$AT_JOB_FILE" ]]; then
+            atrm $(cat "$AT_JOB_FILE") 2>/dev/null
+            rm -f "$AT_JOB_FILE"
+        fi
+        
+        local at_cmd_file=$(mktemp)
+        cat <<EOF > "$at_cmd_file"
+#!/bin/bash
+"$0" execute_update
+EOF
+        
+        local job_info=$(at "$server_time" -f "$at_cmd_file" 2>&1)
+        local job_id=$(echo "$job_info" | grep -oP 'job\s+\K\d+')
+        
+        if [[ -n "$job_id" ]]; then
+            echo "$job_id" > "$AT_JOB_FILE"
+            echo -e "${GREEN}Обновление запланировано на $time_input по $TIMEZONE${RESET}"
+            if [[ "$server_time" != "$time_input" ]]; then
+                echo -e " (серверное время: $server_time)"
+            fi
+            echo -e "ID задания at: $job_id"
+            send_telegram "*📅 Запланировано обновление контейнеров в $time_input по $TIMEZONE*"
+        else
+            echo -e "${RED}Не удалось запланировать задание:${RESET}"
+            echo "$job_info"
+        fi
+        rm -f "$at_cmd_file"
     else
         echo -e "${RED}Неверный формат времени. Попробуйте ещё раз.${RESET}"
     fi
 }
 
+# === Функция для проверки запланированного задания ===
+function check_scheduled_job() {
+    if [[ -f "$AT_JOB_FILE" ]]; then
+        local job_id=$(cat "$AT_JOB_FILE")
+        local job_info=$(at -l | grep "^${job_id}\b")
+        
+        if [[ -n "$job_info" ]]; then
+            local exec_time=$(echo "$job_info" | awk '{print $3, $4, $5, $6}')
+            local user_time=$(TZ="Europe/Moscow" date --date="TZ=\"$(date +%Z)\" $exec_time" +"%H:%M")
+            
+            echo -e "⏰ Запланировано обновление на: ${GREEN}$user_time${RESET} (по $TIMEZONE)"
+            echo -e "ID задания at: $job_id"
+            return 0
+        else
+            rm -f "$AT_JOB_FILE"
+        fi
+    fi
+    echo "📭 Обновление не запланировано."
+    return 1
+}
+
 # === Функция для выполнения обновления ===
 function perform_update() {
-    # Загружаем запланированное время
-    local update_time=$(cat "$SCHEDULE_FILE" 2>/dev/null)
-    if [[ -z "$update_time" ]]; then
-        return
-    fi
+    echo -e "${GREEN}Начинаем обновление контейнеров...${RESET}"
+    send_telegram "*🚀 Обновление контейнеров началось...*"
 
-    # Получаем текущее время в московском часовом поясе
-    local now_time=$(TZ="$TIMEZONE" date +"%H:%M")
+    cd "$DOCKER_COMPOSE_DIR" || exit 1
 
-    # Преобразуем время в минуты с начала дня
-    local now_minutes=$((10#$(echo "$now_time" | cut -d: -f1) * 60 + 10#$(echo "$now_time" | cut -d: -f2)))
-    local update_minutes=$((10#$(echo "$update_time" | cut -d: -f1) * 60 + 10#$(echo "$update_time" | cut -d: -f2)))
+    output=$( (ls) 2>&1 )
+    log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
 
-    # Логирование для отладки
-    echo "DEBUG: now_time=$now_time, update_time=$update_time, now_minutes=$now_minutes, update_minutes=$update_minutes" >> /tmp/remna_update_debug.log
+    rm -f "$AT_JOB_FILE"
 
-    # Если текущее время больше или равно запланированному
-    if [[ $now_minutes -ge $update_minutes ]]; then
-        echo -e "${GREEN}Начинаем обновление контейнеров...${RESET}"
-        send_telegram "*🚀 Обновление контейнеров началось...*"
-
-        cd "$DOCKER_COMPOSE_DIR" || exit 1
-
-        # Выполнение команд
-        output=$( (ls) 2>&1 ) # Это тестовая команда. После теста замените на рабочую
-        # output=$( (docker compose down && docker compose pull && docker compose up -d) 2>&1 )
-        log_output=$(docker compose logs | grep -E 'ERROR|error|Error|WARNING|warning|Warning')
-
-        # Удаляем задание (одноразовое выполнение)
-        rm -f "$SCHEDULE_FILE"
-
-        # Отправка в Telegram
-        message=$(cat <<EOF
+    message=$(cat <<EOF
 *✅ Обновление завершено.*
 
 *Вывод команд:*
@@ -103,20 +156,16 @@ $output
 $log_output
 \`\`\`
 EOF
-)
-        send_telegram "$message"
-    fi
+    )
+    send_telegram "$message"
 }
 
 # === Основное меню ===
 function show_menu() {
     echo -e "${CYAN}==== Менеджер обновлений контейнеров ====${RESET}"
+    echo
 
-    if [[ -f "$SCHEDULE_FILE" ]]; then
-        echo -e "⏰ Запланировано обновление на: ${GREEN}$(cat "$SCHEDULE_FILE")${RESET} (по $TIMEZONE)"
-    else
-        echo "📭 Обновление не запланировано."
-    fi
+    check_scheduled_job
 
     echo
     echo "1. Запланировать одноразовое обновление"
@@ -128,18 +177,30 @@ function show_menu() {
 
     case "$choice" in
         1) schedule_update ;;
-        2) echo "$(TZ=$TIMEZONE date +%H:%M)" > "$SCHEDULE_FILE"; perform_update ;;
-        3) rm -f "$SCHEDULE_FILE"; echo "Запланированное обновление отменено." ;;
+        2) perform_update ;;
+        3) 
+            if [[ -f "$AT_JOB_FILE" ]]; then
+                job_id=$(cat "$AT_JOB_FILE")
+                atrm "$job_id"
+                rm -f "$AT_JOB_FILE"
+                echo -e "${GREEN}Запланированное обновление отменено.${RESET}"
+                send_telegram "*❌ Запланированное обновление контейнеров отменено.*"
+            else
+                echo -e "${RED}Нет запланированных обновлений.${RESET}"
+            fi
+            ;;
         4) exit 0 ;;
-        *) echo "Неверный выбор!" ;;
+        *) echo -e "${RED}Неверный выбор!${RESET}" ;;
     esac
 }
 
 # === Запуск ===
+check_install_at
 load_env_vars
 
-if [[ "$1" == "cron" ]]; then
+if [[ "$1" == "execute_update" ]]; then
     perform_update >> /tmp/remna_update.log 2>&1
+    rm -f "$AT_JOB_FILE"
 else
     show_menu
 fi
