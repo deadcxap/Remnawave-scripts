@@ -9,13 +9,11 @@
 
 ## remna-update-manager.sh
 
-Можно запланировать одноразовое обновление контейнеров по Московскому времени
+Можно запланировать одноразовое обновление контейнеров по Московскому времени c помощью **at**
 
 контейнеры берутся в */opt/remnawave/docker-compose.yml*
 
-Используется **at**. Если сейчас день, и задать 5:00, обновление будет завтра в 5:00
-
-по московскому времени, не смотря на время сервера
+Обновляются командой `cd /opt/remnawave && docker compose down && docker compose pull && docker compose up -d && docker compose logs -f -t`
 
 ![image](https://github.com/user-attachments/assets/0c33c20f-a120-456b-bdea-d7039c30e0be)
 
