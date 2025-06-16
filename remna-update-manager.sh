@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# создаем nano /usr/local/bin/remna-update-manager.sh
+# потом chmod +x /usr/local/bin/remna-update-manager.sh
+# не забудь в коде переключить output=$... с теста на рабочий код
+# в секции "Функция для выполнения обновления"
+
 # === КОНФИГУРАЦИЯ ===
 DOCKER_COMPOSE_DIR="/opt/remnawave"
 TIMEZONE="Europe/Moscow"
