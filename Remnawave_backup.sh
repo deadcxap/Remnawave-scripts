@@ -22,28 +22,6 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# Install required packages if missing
-install_dependencies() {
-  local required=("docker-ce" "docker-ce-cli" "containerd.io" "docker-compose-plugin" "tar" "gzip")
-  local to_install=()
-  
-  for pkg in "${required[@]}"; do
-    if ! command -v "${pkg%%-*}" &>/dev/null; then
-      to_install+=("$pkg")
-    fi
-  done
-
-  if [ ${#to_install[@]} -gt 0 ]; then
-    echo -e "${YELLOW}Installing required packages: ${to_install[*]}${NC}"
-    apt-get update
-    apt-get install -y "${to_install[@]}" || {
-      echo -e "${RED}Failed to install required packages${NC}"
-      exit 1
-    }
-    systemctl enable --now docker
-  fi
-}
-
 # Create backup directory if not exists
 mkdir -p "$BACKUP_DIR"
 
@@ -72,18 +50,11 @@ backup() {
     fi
   done
   
-  # 3. Backup Docker configs
-  echo -e "${YELLOW}Backing up Docker configs...${NC}"
-  mkdir -p "$temp_dir/docker/configs"
-  if [ -d "$REMNAWAVE_DIR" ]; then
-    cp -r "$REMNAWAVE_DIR" "$temp_dir/docker/configs/remnawave"
-  fi
-  
-  # 4. Create final archive
+  # 3. Create final archive
   echo -e "${YELLOW}Creating backup archive...${NC}"
   tar -cvpzf "$BACKUP_DIR/$backup_name.tar.gz" -C /tmp "$backup_name"
   
-  # 5. Start Docker containers back if they were running
+  # 4. Start Docker containers back if they were running
   if [ -f "$DOCKER_COMPOSE_FILE" ]; then
     echo -e "${YELLOW}Starting Docker containers...${NC}"
     cd "$REMNAWAVE_DIR" && docker compose up -d
@@ -98,8 +69,6 @@ backup() {
 }
 
 restore() {
-  install_dependencies
-  
   echo -e "${YELLOW}Available backups:${NC}"
   local backups=($(ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null))
   
@@ -155,14 +124,7 @@ restore() {
     fi
   done
   
-  # 3. Restore Docker configs
-  echo -e "${YELLOW}Restoring Docker configs...${NC}"
-  if [ -d "$temp_dir/docker/configs/remnawave" ]; then
-    mkdir -p "$REMNAWAVE_DIR"
-    cp -r "$temp_dir/docker/configs/remnawave"/* "$REMNAWAVE_DIR/"
-  fi
-  
-  # 4. Start Docker containers
+  # 3. Start Docker containers
   if [ -f "$DOCKER_COMPOSE_FILE" ]; then
     echo -e "${YELLOW}Starting Docker containers...${NC}"
     cd "$REMNAWAVE_DIR" && docker compose up -d --build
