@@ -19,7 +19,7 @@
 
 
 ## Remnawave_backup.sh:
-останавливает контейнеры, затем делает бэкап volumes БД и Редис, содержимого папки /opt/remnawave и затем запускает контейнеры
+останавливает контейнеры, затем делает бэкап volumes БД и Редис, и затем запускает контейнеры
 
 ![image](https://github.com/user-attachments/assets/8f0c7183-56ab-4337-afad-0a785f1daae7)
 
