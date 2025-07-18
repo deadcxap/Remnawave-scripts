@@ -14,7 +14,8 @@ ports:
   - '127.0.0.1:3001:3001'
 ```
 
-Пример конфигурации (вариант установки по скрипту eGames):
+<details>
+  <summary>Пример конфигурации (вариант установки по скрипту eGames):</summary>
 
 ```yaml
 remnawave:
@@ -40,6 +41,8 @@ remnawave:
       max-size: '30m'
       max-file: '5'
 ```
+
+</details>
 
 ---
 
