@@ -117,8 +117,10 @@ mkdir -p /opt/monitoring/{grafana,prometheus}
 ```
 
 Файл `/opt/monitoring/docker-compose.yml`:
+
 <details>
   <summary>Открыть пример файла</summary>
+  
 ```yaml
 services:
 #  uptime-kuma:
@@ -186,7 +188,9 @@ volumes:
 Здесь `sub.mydomain.com` - адрес домена, прикрепленного к тестовому VPS, на котором устанавливаются Графана и Прометей
 
 `https://podpiska.mydomain.com/6f5g46df46g45f54` - ВПН подписка, сделайте отдельного пользователя для этой роли.
+
 </details>
+
 
 ---
 
