@@ -58,7 +58,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/remna_tunnel_key
 
 > Без пароля.
 
-2. Добавление публичного ключа на сервер с Remnawave:
+2. Добавление публичного ключа на сервере с Remnawave:
 
 В файл `~/.ssh/authorized_keys`:
 
@@ -68,7 +68,7 @@ from="IP_мониторингового_сервера",no-pty,no-agent-forwardi
 
 > Вместо `AAAAC3...` вставьте содержимое `remna_tunnel_key.pub`, начинающееся на `AAAAC3`.
 
-3. Установка `autossh`:
+3. Установка `autossh`: (продолжаем на мониторинговом сервере)
 
 ```bash
 sudo apt install autossh
