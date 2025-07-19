@@ -179,6 +179,7 @@ services:
     environment:
       - "SUBSCRIPTION_URL=https://podpiska.mydomain.com/6f5g46df46g45f54"
       - "PROXY_STATUS_CHECK_URL=http://google.com/generate_204"
+      - "PROXY_CHECK_INTERVAL=30"
     ports:
       - "2112:2112"
     network_mode: host
