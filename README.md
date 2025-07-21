@@ -39,3 +39,4 @@
 ```
 curl -L -o /root/ssh.sh https://raw.githubusercontent.com/OMchik33/Remnawave-scripts/refs/heads/main/ssh.sh && chmod +x /root/ssh.sh && bash /root/ssh.sh
 ```
+<img width="660" height="509" alt="image" src="https://github.com/user-attachments/assets/81f83fae-3d5c-4178-b5a8-490e5b685306" />
