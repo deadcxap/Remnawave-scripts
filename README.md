@@ -34,7 +34,7 @@
 ![image](https://github.com/user-attachments/assets/47ea81de-9c52-4021-b988-c6b83a2fca56)
 
 
-Запуск скриата:
+Запуск скрипта:
 
 ```
 curl -L -o /root/ssh.sh https://raw.githubusercontent.com/OMchik33/Remnawave-scripts/refs/heads/main/ssh.sh && chmod +x /root/ssh.sh && bash /root/ssh.sh
