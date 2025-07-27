@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 
 # Настройки
 CONTAINER_NAME="remnanode"
-LOG_PATH="/var/log/supervisor/xray.out.log"
+LOG_PATH="/var/log/remnanode/access.log"
 LOG_LINES=1000 # Количество анализируемых строк лога
 
 # Функция для быстрого получения логов
