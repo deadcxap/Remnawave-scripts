@@ -40,23 +40,29 @@ else
 fi
 echo ""
 
+echo ""
 # --- Разбор параметров командной строки ---
 DEFAULT_SSH_PORT=2222
 SSH_PORT="$DEFAULT_SSH_PORT"
 SSH_KEY=""
+AUTO_UFW=0
 
 show_usage() {
-  echo -e "${CYAN}Использование: $0 [-p порт (1-65535)] [-k '\"public_ssh_key\"']${NC}"
+  echo -e "${CYAN}Использование: $0 [-p порт (1-65535)] [-k 'public_ssh_key'] [-u]${NC}"
+  echo -e "  ${CYAN}-u  авто-согласие на установку и настройку UFW${NC}"
   exit 1
 }
 
-while getopts ":p:k:" opt; do
+while getopts ":p:k:u" opt; do
   case $opt in
     p)
       SSH_PORT="$OPTARG"
       ;;
     k)
       SSH_KEY="$OPTARG"
+      ;;
+    u)
+      AUTO_UFW=1
       ;;
     \?)
       echo -e "${RED}❌ Неизвестный параметр -$OPTARG${NC}"
@@ -99,19 +105,24 @@ fi
 echo ""
 # --- Настройка UFW ---
 SETUP_UFW=""
-echo -e "${CYAN}➡️ Настроить фаервол UFW для нового SSH-порта (${SSH_PORT})?${NC}"
-echo "   1) Да (рекомендуется, если UFW используется или планируется)"
-echo "   2) Нет"
-while [[ "$SETUP_UFW" != "1" && "$SETUP_UFW" != "2" ]]; do
-    read -rp ">>> Ваш выбор [1/2]: " SETUP_UFW
-    if [[ "$SETUP_UFW" != "1" && "$SETUP_UFW" != "2" ]]; then
-        echo -e "${RED}❌ Неверный выбор. Введите 1 или 2.${NC}"
-    fi
-done
-if [[ "$SETUP_UFW" == "1" ]]; then
-    echo -e "${GREEN}✅ UFW будет настроен.${NC}"
+if [[ "$AUTO_UFW" -eq 1 ]]; then
+  SETUP_UFW=1
+  echo -e "${GREEN}✅ Авто-согласие: UFW будет установлен и настроен без подтверждения.${NC}"
 else
-    echo -e "${YELLOW}ℹ️ UFW настраиваться не будет. Убедитесь, что порт ${SSH_PORT} разрешен в вашем фаерволе вручную, если он активен.${NC}"
+  echo -e "${CYAN}➡️ Настроить фаервол UFW для нового SSH-порта (${SSH_PORT})?${NC}"
+  echo "   1) Да (рекомендуется, если UFW используется или планируется)"
+  echo "   2) Нет"
+  while [[ "$SETUP_UFW" != "1" && "$SETUP_UFW" != "2" ]]; do
+      read -rp ">>> Ваш выбор [1/2]: " SETUP_UFW
+      if [[ "$SETUP_UFW" != "1" && "$SETUP_UFW" != "2" ]]; then
+          echo -e "${RED}❌ Неверный выбор. Введите 1 или 2.${NC}"
+      fi
+  done
+  if [[ "$SETUP_UFW" == "1" ]]; then
+      echo -e "${GREEN}✅ UFW будет настроен.${NC}"
+  else
+      echo -e "${YELLOW}ℹ️ UFW настраиваться не будет. Убедитесь, что порт ${SSH_PORT} разрешен в вашем фаерволе вручную, если он активен.${NC}"
+  fi
 fi
 
 echo ""
